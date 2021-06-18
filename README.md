@@ -14,6 +14,13 @@ This is a web crawler for the Pixivic website based on Python3 and Pyqt5,  It wa
 ### Version 1.0
 - 第一个较为稳定的版本 The first stable version
 
+### Version1.2
+- 调整下载图片上限从200至1000 Adjusted the upper limit of downloaded images from 200 to 1000
+- 添加针对画师id以及画作id进行图片下载的模式 Add a mode to download images for artist ID and painting ID
+- 将符合关键词的图片优先下载 The images that match the keywords will be downloaded first
+- 为线程分配内存，防止在运行时候出现未响应 Allocate memory for threads to prevent unresponsiveness at run time(fix bug)
+
+
 ## 运行环境与依赖 Running environment and requirements
 - Windows
 - Python 3
@@ -24,3 +31,4 @@ This is a web crawler for the Pixivic website based on Python3 and Pyqt5,  It wa
 
 ## 使用许可 Use license
 [MIT](LICENSE) © Lost
+

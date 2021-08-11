@@ -20,6 +20,14 @@ This is a web crawler for the Pixivic website based on Python3 and Pyqt5,  It wa
 - 将符合关键词的图片优先下载 The images that match the keywords will be downloaded first
 - 为线程分配内存，防止在运行时候出现未响应 Allocate memory for threads to prevent unresponsiveness at run time(fix bug)
 
+### Version1.3
+
+- 调整部分代码整洁性 Adjust some code neatness
+- 搜索图片的时候不再卡顿未响应 The interface is not unresponsive when searching for images
+- 自动排除被网站屏蔽的图片 Automatically exclude images which blocked by the site
+- 将conf.ini配置文件放到main.pyw同级目录 Modified the configuration file directory
+- 优化了部分提示文本 Optimized some hint text
+
 
 ## 运行环境与依赖 Running environment and requirements
 - Windows

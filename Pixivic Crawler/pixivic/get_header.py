@@ -46,9 +46,10 @@ def get_login_header() -> dict:
     }
 
 
-def get_download_header(img_id: str) -> dict:
+def get_download_header() -> dict:
+    # referer 从"https://sharemoe.top/illusts/" + img_id 改为 “https://sharemoe.top”
     return {
-        'referer': "https://sharemoe.net/illusts/" + img_id,
+        'referer': "https://sharemoe.top",
         'Content-Type': 'application/json;charset=utf-8',
         'User-Agent': random.choice(user_agent_list)
     }

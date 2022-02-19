@@ -2,9 +2,9 @@
 一个带有图形界面的pixivic网站爬虫
 
 ## 简介 Introduction
-这是基于Python3以及Pyqt5的图形界面爬虫，是我在github上的第一个项目。如果有什么问题，请谅解。
+这是基于Python3以及Pyqt5的图形界面爬虫，是我在github上的第一个项目。
 
-This is a web crawler for the Pixivic website based on Python3 and Pyqt5,  It was my first project on GitHub.   Please understand if there is something wrong with it.  
+This is a web crawler for the Pixivic website based on Python3 and Pyqt5,  It was my first project on GitHub.   
 
 ## 特性 Features
 - 拥有方便操作的用户图形界面 With an easly-operated GUI
@@ -28,6 +28,8 @@ This is a web crawler for the Pixivic website based on Python3 and Pyqt5,  It wa
 - 将conf.ini配置文件放到main.pyw同级目录 Modified the configuration file directory
 - 优化了部分提示文本 Optimized some hint text
 
+### Version1.5
+- 代码重构，真的变的更好了
 
 ## 运行环境与依赖 Running environment and requirements
 - Windows

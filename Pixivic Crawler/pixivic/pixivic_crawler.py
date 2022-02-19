@@ -3,170 +3,168 @@ import base64
 import json
 import re
 import time
+from enum import Enum
+from typing import List, Dict, AnyStr
 
 import requests
 
 from .get_header import get_connect_header, get_simple_header, get_download_header
 
 
-class PixCrawler(object):
-    def __init__(self, token: str):
-        if PixCrawler.validation_token(token):
-            self.token = token
-        else:
-            raise Exception
-
-    @staticmethod
-    # 验证token是否过期（token用的是jwt）Verify that the token is expired or not(JWT)
-    def validation_token(token):
-        token_partition = re.split('\\.', token)
+def validation_token(token) -> bool:
+    """
+    验证token是否过期（jwt格式）
+    """
+    try:
+        token_partition = re.split(r"\.", token)
         token_time = base64.b64decode(token_partition[1] + "=").decode()
         token_time_json = json.loads(token_time)
-        now_time = int(time.time())
-        if now_time < int(token_time_json['exp']):
-            return True
-        else:
-            return False
+    except UnicodeDecodeError:
+        raise ValueError("token格式有误")
+    return time.time() < token_time_json["exp"]
 
-    @classmethod
-    def connect_test(cls) -> bool:  # 测试网络连接是否正常 Test whether the network connection is normal
-        connect_header = get_connect_header()
-        response = requests.get(
-            'https://sharemoe.top/',
-            headers=connect_header)
-        if response.status_code == 200:
-            return True
-        else:
-            return False
 
-    def _get_page_img_url_list(
-            self,
-            page: int,
-            keyword_or_date_or_id: str,
-            mode: str,
-            is_filter: bool) -> list:
-        # 获取api返回对应页码的图片网址 return the corresponding page number of the image
-        # URL
+def connect_test() -> bool:
+    """
+    测试能否连接到网站
+    """
+    connect_header = get_connect_header()
+    response = requests.get('https://sharemoe.top/', headers=connect_header)
+    return response.status_code == 200
+
+
+class Mode(Enum):
+    KEYWORD = 0
+    DATE = 1
+    ARTIST_ID = 2
+    ILLUSTS_ID = 3
+
+
+class PixCrawler(object):
+    def __init__(self, token: str):
+        self.token = token
+
+    @property
+    def token(self):
+        if not self.__token:
+            raise NotImplementedError("token的值还没有被设置")
+        if not validation_token(self.__token):
+            raise ValueError("token的值已经过期！")
+        return self.__token
+
+    @token.setter
+    def token(self, value):
+        self.__token = value
+
+    def get_pic_suffix_url_list(self, data: str, num: int, mode: Mode, is_filter: bool) -> List[AnyStr]:
+        """
+        获取图片的链接后缀 例如 “2021/12/02/16/24/36/94515211_p0.png”， 提供给download函数
+
+        :param data: 搜索的内容 可以为 日期 例如“2021-07-07” 可以为关键词，可以为 id
+        :param num: 需求的图片数量
+        :param mode: Mode枚举类中的类型
+        :param is_filter: 是否过滤漫画（多p图片）
+        :return: 包含网址后缀的列表
+        """
         fake_header = get_simple_header()
         fake_header['authorization'] = self.token
-        if mode == 'search':
-            url = 'https://pix.ipv4.host/illustrations?illustType=illust&searchType=original&maxSanityLevel=3&page=%d' \
-                  '&keyword=%s&pageSize=30' % (page, keyword_or_date_or_id)
-        elif mode == 'daily':  # date示例 '2020-05-09'
-            url = 'https://pix.ipv4.host/ranks?page=%d&date=%s&mode=day&pageSize=30' % (
-                page, keyword_or_date_or_id)
-        elif mode == 'artistId':
-            url = 'https://pix.ipv4.host/artists/%s/illusts/illust?page=%d&pageSize=30&maxSanityLevel=3'\
-                  % (keyword_or_date_or_id, page)
-        else:  # mode == 'illustsId'
+        if mode == Mode.KEYWORD:
+            return self._search_pic_url_list(data, num, is_filter)
+        elif mode == Mode.DATE:
+            url = f'https://pix.ipv4.host/ranks?page=1&date={data}&mode=day&pageSize={num}'
+        elif mode == Mode.ARTIST_ID:
+            url = f'https://pix.ipv4.host/artists/{data}/illusts/illust?page=1&pageSize={num}&maxSanityLevel=3'
+        elif mode == Mode.ILLUSTS_ID:
+            url = f'https://pix.ipv4.host/illusts/{data}'
+        else:
+            raise ValueError(f" 'mode' 参数应当为Mode枚举类的成员，而并不是{mode}")
+        res_json = requests.get(url, headers=fake_header).json()
+        data_json = res_json.get("data")
+        if data_json is None:
+            return []  # 画作不存在或为限制级图片
+        if mode == Mode.ILLUSTS_ID:
+            ori_pic_url_list = [data["original"] for data in data_json["imageUrls"]]
+        elif is_filter:
+            ori_pic_url_list = [data['imageUrls'][0]['original'] for data in data_json if len(data['imageUrls']) == 1]
+        else:
+            ori_pic_url_list = [data['imageUrls'][0]['original'] for data in data_json]
+        return self._cut_suffix_url(ori_pic_url_list)
+
+    def get_recommend_keyword_list(self, keyword: str) -> List[Dict]:
+        """
+        返回推荐关键搜索词列表
+
+        :param keyword: 关键词
+        :return: 形如 [{"keyword":"初音ミク","keywordTranslated":"初音未来"}]
+        """
+        fake_header = get_simple_header()
+        fake_header['authorization'] = self.token
+        recommend_url = f"https://pix.ipv4.host/keywords/{keyword}/pixivSuggestions"
+        res_json = requests.get(recommend_url, headers=fake_header, timeout=30).json()
+        data = res_json.get('data')
+        if not data:
             return []
-        response = requests.get(url, headers=fake_header)
-        json_res = json.loads(response.text)
-        page_img_url_list = []
-        if json_res == {
-            'message': '搜索结果获取成功'} or json_res == {
-            'message': "获取画师画作列表成功"} or json_res == {
-                'message': '获取排行成功'}:  # 该对应页面没有图片
-            return []
-        for data in json_res['data']:
-            if is_filter:
-                if len(data['imageUrls']) == 1:
-                    img_data = data['imageUrls'][0]
-                    id_num = re.findall(
-                        r"[0-9]+/[0-9]+/[0-9]+/[0-9]+/[0-9]+/[0-9]+/[0-9]*_p[0-9]*.*",
-                        img_data['original'])
-                    if len(id_num) != 0:
-                        page_img_url_list.append(id_num[0])
-                    else:
-                        pass
+        return data
+
+    @staticmethod
+    def _cut_suffix_url(ori_list) -> list:
+        """
+        获取列表中网址后缀，反向列表并返回
+        """
+        res_pic_url_suffix_list = []
+        for _ in range(len(ori_list)):  # 倒置列表以把优先度最高的放在列表尾部 以供下载使用高效的pop先获取优先度高的图片
+            # 正则匹配对象为 2021/12/02/16/24/36/94515211_p0.png 以及特殊的 2021/12/02/16/10/54/94515035_ugoira0.jpg
+            suffix = re.search(r"([0-9]+/){6}[0-9]+_.*[0-9].*", ori_list.pop())
+            if suffix:
+                res_pic_url_suffix_list.append(suffix.group(0))
+        return res_pic_url_suffix_list
+
+    def _search_pic_url_list(self, data, num, is_filter) -> list:
+        """
+        搜索模式限制了 pageSize 的大小要小于等于 30 ，
+        :param 参数如 get_pic_url_list 函数
+        :return:
+        """
+        fake_header = get_simple_header()
+        fake_header['authorization'] = self.token
+        page = 1
+        ori_url_list = []
+        ori_url = 'https://pix.ipv4.host/illustrations?illustType=illust&searchType=original&maxSanityLevel=3&page={}' \
+                  '&keyword={}&pageSize=30'
+        while len(ori_url_list) < num:
+            url = ori_url.format(page, data)
+            res_json = requests.get(url, headers=fake_header).json()
+            data_json = res_json.get("data")
+            if data_json is None:
+                break
+            elif is_filter:
+                page_pic_url_list = [data['imageUrls'][0]['original'] for data in data_json
+                                     if len(data['imageUrls']) == 1]
             else:
-                for img_data in data['imageUrls']:
-                    id_num = re.findall(
-                        r'[0-9]+/[0-9]+/[0-9]+/[0-9]+/[0-9]+/[0-9]+/[0-9]*_p[0-9]*.*',
-                        img_data['original'])
-                    page_img_url_list.append(id_num[0])
-        return page_img_url_list
+                page_pic_url_list = [data['imageUrls'][0]['original'] for data in data_json]
+            ori_url_list.extend(page_pic_url_list)
+        return self._cut_suffix_url(ori_url_list[:num])
 
-    def get_img_url_list(
-            self,
-            date_or_keyword: str,
-            num: int,
-            mode: str,
-            is_filter: bool) -> list:
-        # 获取对应模式对应数量的图片网址列表
-        # Gets a list of image URLs corresponding to the corresponding num and
-        # corresponding pattern
-        img_url_list = []
-        page = 1  # 初始值
-        page_data = self._get_page_img_url_list(
-            page, date_or_keyword, mode, is_filter)
-        while len(page_data) != 0 and len(img_url_list) < num:
-            img_url_list.extend(page_data)
-            page += 1
-            page_data = self._get_page_img_url_list(
-                page, date_or_keyword, mode, is_filter)
-        if len(img_url_list) > num:
-            img_url_list = img_url_list[:num]
-        return img_url_list
 
-    def get_art_id_url_list(self, art_id: str, mode: str) -> list:
-        # 获取对应作品id或者作者id的图片网址列表
-        fake_header = get_simple_header()
-        fake_header['authorization'] = self.token
-        img_url_list = []
+def download_pic(url_suffix: str, download_path: str):
+    """
 
-        if mode == 'artistId':
-            page = 1
-            page_data = self._get_page_img_url_list(page, art_id, mode, False)
-            while len(page_data) != 0:
-                img_url_list.extend(page_data)
-                page += 1
-                page_data = self._get_page_img_url_list(
-                    page, art_id, mode, False)
-            return img_url_list
-        if mode == 'illustsId':
-            url = 'https://pix.ipv4.host/illusts/' + art_id
-            response = requests.get(url, headers=fake_header)
-            json_res = json.loads(response.text)
-            if json_res == {"message": "画作不存在或为限制级图片"}:  # 即获得无内容反馈
-                return []
-            artist_data = json_res['data']['artistPreView']
-            img_url_list.append(artist_data)
-            for img_data in json_res['data']['imageUrls']:
-                id_num = re.findall(
-                    r'[0-9]+/[0-9]+/[0-9]+/[0-9]+/[0-9]+/[0-9]+/[0-9]*_p[0-9]*.*',
-                    img_data['original'])
-                img_url_list.append(id_num[0])
-            return img_url_list
-
-    @classmethod
-    def download_pic(cls, img_id: str, download_path: str):
-        # 下载对应图片网址的图片 Download the pictures
-        img_url = 'https://o.acgpic.net/img-original/img/' + img_id
-        header = get_download_header(img_id)
-        try:
-            pic = requests.get(img_url, headers=header, timeout=(8, 30))
-            if pic.status_code == 404:  # 排除被网站屏蔽的404图片
-                return False
-            f = open(download_path, 'wb')
-            f.write(pic.content)
-            f.close()
-            return True
-        except requests.exceptions.RequestException:
-            return False
-
-    def get_recommend_keyword_list(self, keyword: str) -> list:
-        # 返回推荐关键搜索词列表 Returns a list of recommended key search terms
-        fake_header = get_simple_header()
-        fake_header['authorization'] = self.token
-        recommend_url = "https://pix.ipv4.host/keywords/" + keyword + "/pixivSuggestions"
-        response_keyword = requests.get(
-            recommend_url, headers=fake_header, timeout=30)
-        json_data = json.loads(response_keyword.text)
-        if json_data == {'message': '搜索建议(来自Pixiv)获取成功'}:  # 即获得无内容反馈
-            return []
-        return json_data['data']
+    :param url_suffix: 图片网址的后缀 例：
+    :param download_path:
+    :return:
+    """
+    img_url = f'https://o.i.edcms.pw/img-original/img/{url_suffix}'
+    header = get_download_header()
+    pic = requests.get(img_url, headers=header, timeout=5)  # 可能抛出 requests.exceptions.Timeout
+    pic.raise_for_status()  # 可能抛出 requests.exceptions.HTTPError
+    with open(download_path, 'wb') as file:
+        file.write(pic.content)
+    return True
 
 
 if __name__ == '__main__':
-    pass
+    pix = PixCrawler(
+        "eyJhbGciOiJIUzUxMiJ9.eyJwZXJtaXNzaW9uTGV2ZWwiOjEsInJlZnJlc2hDb3VudCI6MSwiaXNDaGVja1Bob25lIjowLCJ1c2VySWQiOjIwMzU3MSwiaWF0IjoxNjQ0OTg5MDkxLCJleHAiOjE2NDUzMzQ2OTF9.7F7TwRs79my5BLx0gFTPGIrUXb7Pz9v45jesWpxgLaGEPCgSLzg3GATiOnomBaA7DR0u6EgSEcp__0lE_KFKpw")
+    tt = pix.get_pic_suffix_url_list("miku", 10, Mode.KEYWORD, True)
+    print("xz")
+    download_pic('2021/11/17/00/00/08/94181244_p0.png', '1.png')

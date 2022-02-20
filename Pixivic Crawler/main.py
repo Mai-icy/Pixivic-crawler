@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 import os
+import re
 import io
 import sys
 import time
@@ -160,12 +161,22 @@ class MainUi(QWidget, ui.Ui_MainWidget):
 
     def start_button_event(self):
         """开始按钮，开始事件"""
+        if self.mode == Mode.KEYWORD:
+            keyword = self.keyword_lineEdit.text()
+            if not keyword:
+                self.msg_textEdit.appendPlainText("关键词还没选哪！！（′Д`）")
+                return
+        elif self.mode == Mode.ILLUSTS_ID or self.mode == Mode.ARTIST_ID:
+            _id = self.id_of_art_lineEdit.text()
+            if not _id:
+                self.msg_textEdit.appendPlainText("ID还没写哪！！（′Д`）")
+                return
         path = self.path_lineEdit.text()
-        keyword = self.keyword_lineEdit.text()
-        if not all([path, keyword]):
-            text = "路径还没选哪！！（′Д`）" if keyword else "关键词还没选哪！！（′Д`）"
-            self.msg_textEdit.appendPlainText(text)
+        if not path:
+            self.msg_textEdit.appendPlainText("路径还没选哪！！（′Д`）")
             return
+
+        self.msg_textEdit.clear()  # 交给主线程清空，否则未响应
         self.get_url_thread = WorkThread(self._get_url_thread)
         self.start_main_thread = WorkThread(self._start_main_thread)
         self.get_url_thread.start()
@@ -197,6 +208,8 @@ class MainUi(QWidget, ui.Ui_MainWidget):
             data = self.date_time_timeEdit.date().toString(Qt.ISODate)
             inline_text = f"日期排行榜模式日期为 {data}"
         elif self.mode == Mode.ILLUSTS_ID:
+            self.print_str.emit(self.artist_data_text)
+            self.artist_data_text = ''
             data = self.id_of_art_lineEdit.text()
             inline_text = f"作品id模式id为 {data}"
         else:  # self.mode == Mode.ARTIST_ID:
@@ -206,10 +219,13 @@ class MainUi(QWidget, ui.Ui_MainWidget):
         self.print_str.emit(print_text)
         self.s_out = io.StringIO()
         # 进度条美化 https://blog.csdn.net/weixin_32597695/article/details/112201800
-        self.progress_bar = tqdm(self.img_suffix_url_list[:], file=self.s_out)
+        self.progress_bar = tqdm(range(total_num), file=self.s_out)
         self.progress_iter = iter(self.progress_bar)
         next(self.progress_iter)  # 预激迭代器
-        path = self.path_lineEdit.text()
+        folder_name = re.sub(r"|[\\/:*?\"<>| ]+", "", f"{data},{total_num}张")
+        folder_path = os.path.join(self.path_lineEdit.text(), folder_name)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
         self.result_data = {
             "total": total_num,
             "404": 0,
@@ -217,7 +233,7 @@ class MainUi(QWidget, ui.Ui_MainWidget):
         }
         self.download_threads_list.clear()
         for _ in range(self.thread_spinBox.value()):
-            download_thread = WorkThread(self._download_thread, path, total_num)
+            download_thread = WorkThread(self._download_thread, folder_path, total_num)
             download_thread.thread_all_done_signal.connect(self.download_all_done_event)
             download_thread.start()
             self.download_threads_list.append(download_thread)
@@ -231,8 +247,15 @@ class MainUi(QWidget, ui.Ui_MainWidget):
             data = self.keyword_lineEdit.text()
         elif self.mode == Mode.DATE:
             data = self.date_time_timeEdit.date().toString(Qt.ISODate)
-        else:
+        elif self.mode == Mode.ARTIST_ID:
             data = self.id_of_art_lineEdit.text()
+        else:  # self.mode == Mode.ILLUSTS_ID
+            data = self.id_of_art_lineEdit.text()
+            artist_info = self.pix.get_artist_info(data)
+            if artist_info:
+                self.artist_data_text = f"已获取画师信息\nid:{artist_info['id']}\nname:{artist_info['name']}"
+            else:
+                self.artist_data_text = "画师搜索失败，可能为限制级{>~<}"
         num = self.num_spinBox.value()
         is_filter = self.is_filter_checkBox.isChecked()
         try:
@@ -293,7 +316,7 @@ class MainUi(QWidget, ui.Ui_MainWidget):
             try:
                 next(self.progress_iter)
                 self.print_str.emit(self.s_out.getvalue().split('\r')[-1])
-                time.sleep(.5)
+                time.sleep(.3)
             except StopIteration:
                 running = False
             finally:
@@ -304,12 +327,14 @@ class MainUi(QWidget, ui.Ui_MainWidget):
         text = self.s_out.getvalue().split('\r')[-1]
         text += "\n下载完成！ヽ(✿ﾟ▽ﾟ)ノ\n"
         timeout_num = self.result_data['total'] - self.result_data['success'] - self.result_data['404']
-        text += f"本次下载的结果，共计{self.result_data['total']}张, 成功{self.result_data['success']}, " \
+        text += f"本次下载的结果，共计{self.result_data['total']}张, 成功{self.result_data['success']}张, " \
                 f"404共{self.result_data['404']}张，超时下载共{timeout_num}张。"
         self.print_str.emit(text)
         if self.is_save_config_checkBox.isChecked():
             self.save_config()
         self.set_button_enable(True)
+
+
 
 
 if __name__ == "__main__":

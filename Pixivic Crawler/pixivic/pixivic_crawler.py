@@ -8,7 +8,7 @@ from typing import List, Dict, AnyStr
 
 import requests
 
-from .get_header import get_connect_header, get_simple_header, get_download_header
+from pixivic.get_header import get_connect_header, get_simple_header, get_download_header
 
 
 def validation_token(token) -> bool:
@@ -56,6 +56,17 @@ class PixCrawler(object):
     def token(self, value):
         self.__token = value
 
+    def get_artist_info(self, art_id):
+        """通过画作id获取作者信息"""
+        fake_header = get_simple_header()
+        fake_header['authorization'] = self.token
+        url = f'https://pix.ipv4.host/illusts/{art_id}'
+        res_json = requests.get(url, headers=fake_header).json()
+        data_json = res_json.get("data")
+        if data_json is None:
+            return {}  # 画作不存在或为限制级图片
+        return data_json["artistPreView"]
+
     def get_pic_suffix_url_list(self, data: str, num: int, mode: Mode, is_filter: bool) -> List[AnyStr]:
         """
         获取图片的链接后缀 例如 “2021/12/02/16/24/36/94515211_p0.png”， 提供给download函数
@@ -71,9 +82,9 @@ class PixCrawler(object):
         if mode == Mode.KEYWORD:
             return self._search_pic_url_list(data, num, is_filter)
         elif mode == Mode.DATE:
-            url = f'https://pix.ipv4.host/ranks?page=1&date={data}&mode=day&pageSize={num}'
+            url = f'https://pix.ipv4.host/ranks?page=1&date={data}&mode=day&pageSize=1000'
         elif mode == Mode.ARTIST_ID:
-            url = f'https://pix.ipv4.host/artists/{data}/illusts/illust?page=1&pageSize={num}&maxSanityLevel=3'
+            url = f'https://pix.ipv4.host/artists/{data}/illusts/illust?page=1&pageSize=1000&maxSanityLevel=3'
         elif mode == Mode.ILLUSTS_ID:
             url = f'https://pix.ipv4.host/illusts/{data}'
         else:
@@ -88,7 +99,7 @@ class PixCrawler(object):
             ori_pic_url_list = [data['imageUrls'][0]['original'] for data in data_json if len(data['imageUrls']) == 1]
         else:
             ori_pic_url_list = [data['imageUrls'][0]['original'] for data in data_json]
-        return self._cut_suffix_url(ori_pic_url_list)
+        return self._cut_suffix_url(ori_pic_url_list[:num])
 
     def get_recommend_keyword_list(self, keyword: str) -> List[Dict]:
         """
@@ -108,9 +119,7 @@ class PixCrawler(object):
 
     @staticmethod
     def _cut_suffix_url(ori_list) -> list:
-        """
-        获取列表中网址后缀，反向列表并返回
-        """
+        """获取列表中网址后缀，反向列表并返回"""
         res_pic_url_suffix_list = []
         for _ in range(len(ori_list)):  # 倒置列表以把优先度最高的放在列表尾部 以供下载使用高效的pop先获取优先度高的图片
             # 正则匹配对象为 2021/12/02/16/24/36/94515211_p0.png 以及特殊的 2021/12/02/16/10/54/94515035_ugoira0.jpg
@@ -128,10 +137,11 @@ class PixCrawler(object):
         fake_header = get_simple_header()
         fake_header['authorization'] = self.token
         page = 1
+        repeat_num = 0  # 暂时不使用
         ori_url_list = []
         ori_url = 'https://pix.ipv4.host/illustrations?illustType=illust&searchType=original&maxSanityLevel=3&page={}' \
                   '&keyword={}&pageSize=30'
-        while len(ori_url_list) < num:
+        while len(ori_url_list) < num and page <= 100:
             url = ori_url.format(page, data)
             res_json = requests.get(url, headers=fake_header).json()
             data_json = res_json.get("data")
@@ -142,16 +152,21 @@ class PixCrawler(object):
                                      if len(data['imageUrls']) == 1]
             else:
                 page_pic_url_list = [data['imageUrls'][0]['original'] for data in data_json]
-            ori_url_list.extend(page_pic_url_list)
+            for pic_url in page_pic_url_list:
+                if pic_url in ori_url_list:
+                    repeat_num += 1
+                else:
+                    ori_url_list.append(pic_url)
+            page += 1
         return self._cut_suffix_url(ori_url_list[:num])
 
 
 def download_pic(url_suffix: str, download_path: str):
     """
+    下载图片
 
-    :param url_suffix: 图片网址的后缀 例：
-    :param download_path:
-    :return:
+    :param url_suffix: 图片网址的后缀 例：“2021/12/02/16/24/36/94515211_p0.png”
+    :param download_path: 保存路径
     """
     img_url = f'https://o.i.edcms.pw/img-original/img/{url_suffix}'
     header = get_download_header()
@@ -164,7 +179,7 @@ def download_pic(url_suffix: str, download_path: str):
 
 if __name__ == '__main__':
     pix = PixCrawler(
-        "eyJhbGciOiJIUzUxMiJ9.eyJwZXJtaXNzaW9uTGV2ZWwiOjEsInJlZnJlc2hDb3VudCI6MSwiaXNDaGVja1Bob25lIjowLCJ1c2VySWQiOjIwMzU3MSwiaWF0IjoxNjQ0OTg5MDkxLCJleHAiOjE2NDUzMzQ2OTF9.7F7TwRs79my5BLx0gFTPGIrUXb7Pz9v45jesWpxgLaGEPCgSLzg3GATiOnomBaA7DR0u6EgSEcp__0lE_KFKpw")
-    tt = pix.get_pic_suffix_url_list("miku", 10, Mode.KEYWORD, True)
-    print("xz")
-    download_pic('2021/11/17/00/00/08/94181244_p0.png', '1.png')
+        "eyJhbGciOiJIUzUxMiJ9.eyJwZXJtaXNzaW9uTGV2ZWwiOjEsInJlZnJlc2hDb3VudCI6MSwiaXNDaGVja1Bob25lIjowLCJ1c2VySWQiOjIwMzU3MSwiaWF0IjoxNjQ1MjY5NzIzLCJleHAiOjE2NDU2MTUzMjN9.HM4w-6Z27VrLR7jrhZZ50E9v4tOMO5CR_Trq-iL-O4JnDuMpVccrM0uvz1ge7R4CZXe5BCYNW2odEUoxI9bssw")
+    tt = pix.get_pic_suffix_url_list("綾波レイ", 1000, Mode.KEYWORD, True)
+    print(tt)
+    print(len(tt))

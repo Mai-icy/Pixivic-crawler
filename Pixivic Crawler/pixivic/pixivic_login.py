@@ -6,7 +6,7 @@ from io import BytesIO
 
 import requests
 
-from .get_header import get_verification_code_header, get_login_header
+from pixivic.get_header import get_verification_code_header, get_login_header
 
 ACCOUNTS = [{"username": "papapa", "password": "12345678"}]  # 待填充
 

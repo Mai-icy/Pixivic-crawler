@@ -7,31 +7,24 @@
 This is a web crawler for the Pixivic website based on Python3 and Pyqt5,  It was my first project on GitHub.   
 
 ## 特性 Features
-- 拥有方便操作的用户图形界面 With an easly-operated GUI
-- 支持多线程 Support for multithreading
-- 可以获取日排行图片和搜索词图片 You can get daily ranking images and search keyword of images
+- 拥有方便操作的用户图形界面
+- 支持多线程
+- 可以获取日排行图片和搜索词图片
+- 可以通过作品或者画师id获取画师id和图片
+- 可以模拟登录，不需要用户名和密码(但是要手动输入验证码)
 
-### Version 1.0
-- 第一个较为稳定的版本 The first stable version
+## 界面 Interface
 
-### Version1.2
-- 调整下载图片上限从200至1000 Adjusted the upper limit of downloaded images from 200 to 1000
-- 添加针对画师id以及画作id进行图片下载的模式 Add a mode to download images for artist ID and painting ID
-- 将符合关键词的图片优先下载 The images that match the keywords will be downloaded first
-- 为线程分配内存，防止在运行时候出现未响应 Allocate memory for threads to prevent unresponsiveness at run time(fix bug)
+模拟登陆
 
-### Version1.3
+![2](image-folder\2.gif)
 
-- 调整部分代码整洁性 Adjust some code neatness
-- 搜索图片的时候不再卡顿未响应 The interface is not unresponsive when searching for images
-- 自动排除被网站屏蔽的图片 Automatically exclude images which blocked by the site
-- 将conf.ini配置文件放到main.pyw同级目录 Modified the configuration file directory
-- 优化了部分提示文本 Optimized some hint text
+下载图片
 
-### Version1.5
-- 代码重构，真的变的更好了
+![1](image-folder\1.gif)
 
 ## 运行环境与依赖 Running environment and requirements
+
 - Windows
 - Python 3
 - Pyqt5 module

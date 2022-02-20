@@ -17,11 +17,11 @@ This is a web crawler for the Pixivic website based on Python3 and Pyqt5,  It wa
 
 模拟登陆
 
-![2](image-folder\2.gif)
+![2](https://github.com/Mai-icy/Pixivic-crawler/blob/master/image-folder/2.gif)
 
 下载图片
 
-![1](image-folder\1.gif)
+![1](https://github.com/Mai-icy/Pixivic-crawler/blob/master/image-folder/1.gif)
 
 ## 运行环境与依赖 Running environment and requirements
 

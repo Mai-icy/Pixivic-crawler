@@ -26,6 +26,7 @@ LOCK = QMutex()
 
 class MainUi(QWidget, ui.Ui_MainWidget):
     print_str = pyqtSignal(str)
+    clear_print_signal = pyqtSignal(str)
 
     def __init__(self):
         super(MainUi, self).__init__()
@@ -80,6 +81,7 @@ class MainUi(QWidget, ui.Ui_MainWidget):
         self.id_mode_comboBox.currentIndexChanged.connect(self._tab_mode_changed_event)
 
         self.print_str.connect(self._print_str_event)
+        self.clear_print_signal.connect(self.msg_textEdit.clear)
 
     @check_token_error
     def _init_config_file(self):
@@ -190,7 +192,7 @@ class MainUi(QWidget, ui.Ui_MainWidget):
                 time.sleep(0.7)
                 break
             time.sleep(0.7)
-            self.msg_textEdit.clear()
+            self.clear_print_signal.emit("")
             self.print_str.emit("正在搜索您所需要的图片，请稍等..." + char)
         if not self.img_suffix_url_list:
             self.print_str.emit("很努力为您搜索了，但画作不存在或为限制级图片(。﹏。*)")
